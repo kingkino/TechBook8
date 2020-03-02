@@ -1,0 +1,65 @@
+# 実行条件
+trigger:
+- master
+
+# 実行環境
+pool:
+  vmImage: "ubuntu-16.04"
+
+# 設定情報
+variables:
+# Libraryにて設定
+- group: HugoSettings
+
+steps:
+# Hugoのダウンロード
+- script: |
+   wget -c https://github.com/gohugoio/hugo/releases/download/\
+   v$(hugo.version)/hugo_$(hugo.version)_Linux-64bit.deb
+  displayName: "Download HUGO"
+
+# Hugoのインストール
+- script: 'sudo dpkg -i hugo_$(hugo.version)_Linux-64bit.deb'
+  displayName: "Install HUGO"
+
+# Hugoのビルド
+- script: |
+   cd $(blog.Path)
+   hugo --baseUrl '$(hugo_prod_baseUrl)' --log -v
+  displayName: 'Generate Blog Prod'
+
+# Hugoのビルド済みリソースのコピー
+- task: CopyFiles@2
+  displayName: 'Copy Blog'
+  inputs:
+    SourceFolder: '$(blog.path)/public'
+    Contents: "**"
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+# Hugoのビルド済みリソースのアップロード
+- task: AzureCLI@2
+  displayName: 'Upload Prod'
+  inputs:
+    # ServiceConnectorにて設定
+    azureSubscription: "TechBookService"
+    scriptType: "bash"
+    scriptLocation: "inlineScript"
+    inlineScript: 'az storage blob upload-batch
+    -d $(ContainerName)
+    -s $(Build.ArtifactStagingDirectory)
+    --account-name $(AccountName)
+    --account-key $(AccountKey)'
+
+# CDNのPurge（消去）
+- task: AzureCLI@2
+  displayName: 'CDN Purge'
+  inputs:
+    # ServiceConnectorにて設定
+    azureSubscription: "TechBookService"
+    scriptType: "bash"
+    scriptLocation: "inlineScript"
+    inlineScript: 'az cdn endpoint purge
+    --resource-group $(ResourceGroup)
+    --profile-name $(CdnProfileName)
+    --name $(CdnEndpointName)
+    --content-paths "/*"'

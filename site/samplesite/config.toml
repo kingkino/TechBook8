@@ -1,0 +1,4 @@
+baseURL = "https://site.kokoni.jp/"
+languageCode = "ja-jp"
+title = "My New Hugo Site"
+theme = "hugo-theme-bootstrap4-blog"
